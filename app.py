@@ -196,73 +196,73 @@ for zone, z_data in hostel_zones.items():
             st.markdown(f"⚠️ *Unexpected change:* Localized pH dropped to {z_data['ph']:.2f}. This is an asset violation indicating unauthorized upstream chemical disposal.")
             anomaly_found = True
         if not anomaly_found:
-        # --- FIXED & INDENTED MULTI-BRANCH RESPONSE MATRIX ---
-        if not anomaly_found:
-            st.markdown("✅ No unexpected parameter variances identified. Water matrices are stable within CPCB parameters.")
+            # --- FIXED & INDENTED MULTI-BRANCH RESPONSE MATRIX ---
+            if not anomaly_found:
+                st.markdown("✅ No unexpected parameter variances identified. Water matrices are stable within CPCB parameters.")
+                
+            st.markdown("<p style='margin-top:15px; margin-bottom:5px;'><strong>🛠️ Recommended Corrective Protocols:</strong></p>", unsafe_allow_html=True)
             
-        st.markdown("<p style='margin-top:15px; margin-bottom:5px;'><strong>🛠️ Recommended Corrective Protocols:</strong></p>", unsafe_allow_html=True)
+            actions = []
+            if "🔴 HIGH-CONFIDENCE" in analysis["disease_status"]:
+                if analysis["noro_stat"] == "HIGH":
+                    actions = ["Halt mess self-service operations immediately; mandate dedicated plate handlers.", "Switch cleaning crews to 1,000 ppm sodium hypochlorite bleach for all common bathrooms."]
+                elif analysis["flu_stat"] == "HIGH":
+                    actions = ["Issue targeted masking directives for shared reading lounges inside this block.", "Increase HVAC exhaust cycles to max air exchanges within hostel common spaces."]
+            elif "🟡 UNCERTAIN SIGNAL" in analysis["disease_status"]:
+                actions = ["Postpone major public health restrictions.", "Trigger automated re-sampling within a 12-hour window to account for heavy stormwater runoff."]
+            elif "🔴 UNEXPLAINED SANITATION" in analysis["sanitation_status"]:
+                actions = ["Halt flow routing to the main biological aeration basin to prevent biomass kill-off.", "Dispatch maintenance to check upstream lab neutralization tanks for leaks."]
+            else:
+                actions = ["Maintain baseline tracking schedules.", "Log active physical attributes to the historical campus baseline file."]
+                
+            st.markdown("".join([f"<div style='padding:5px 0; color:#2C3E50;'>• {act}</div>" for act in actions]), unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+    
+    st.write("---")
+    
+    # --- SECTION 3: TREND GRAPHS OVER DAYS/WEEKS (EXPANDABLE DATA LAYER) ---
+    with st.expander("📈 View Pathogen & Environmental Trend Analysis (Historical Metrics)"):
+        st.markdown("#### 12-Week Campus Timeline Analytics")
         
-        actions = []
-        if "🔴 HIGH-CONFIDENCE" in analysis["disease_status"]:
-            if analysis["noro_stat"] == "HIGH":
-                actions = ["Halt mess self-service operations immediately; mandate dedicated plate handlers.", "Switch cleaning crews to 1,000 ppm sodium hypochlorite bleach for all common bathrooms."]
-            elif analysis["flu_stat"] == "HIGH":
-                actions = ["Issue targeted masking directives for shared reading lounges inside this block.", "Increase HVAC exhaust cycles to max air exchanges within hostel common spaces."]
-        elif "🟡 UNCERTAIN SIGNAL" in analysis["disease_status"]:
-            actions = ["Postpone major public health restrictions.", "Trigger automated re-sampling within a 12-hour window to account for heavy stormwater runoff."]
-        elif "🔴 UNEXPLAINED SANITATION" in analysis["sanitation_status"]:
-            actions = ["Halt flow routing to the main biological aeration basin to prevent biomass kill-off.", "Dispatch maintenance to check upstream lab neutralization tanks for leaks."]
-        else:
-            actions = ["Maintain baseline tracking schedules.", "Log active physical attributes to the historical campus baseline file."]
-            
-        st.markdown("".join([f"<div style='padding:5px 0; color:#2C3E50;'>• {act}</div>" for act in actions]), unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-st.write("---")
-
-# --- SECTION 3: TREND GRAPHS OVER DAYS/WEEKS (EXPANDABLE DATA LAYER) ---
-with st.expander("📈 View Pathogen & Environmental Trend Analysis (Historical Metrics)"):
-    st.markdown("#### 12-Week Campus Timeline Analytics")
-    
-    # Generate an internal historical dataset for plotting (84 days)
-    np.random.seed(42)
-    history_days = 84
-    plot_dates = pd.date_range(start="2026-05-01", periods=history_days, freq="D")
-    
-    # Simulate a realistic historical surge matching the selected sandbox scenario
-    base_noro = np.random.normal(1.1e5, 1.5e4, history_days)
-    base_flu = np.random.normal(1.8e4, 2e3, history_days)
-    base_sars = np.random.normal(3.8e4, 4e3, history_days)
-    
-    if sim_scenario == "Norovirus Spike in Beas Block (Dry Weather)":
-        for d in range(50, history_days):
-            base_noro[d] *= (1.15 ** (d - 50))
-    elif sim_scenario == "Influenza Outbreak in Uhl Block during Heavy Rain":
-        for d in range(55, history_days):
-            base_flu[d] *= (1.12 ** (d - 55))
-            
-    hist_df = pd.DataFrame({
-        "Date": plot_dates,
-        "Norovirus (GC/L)": base_noro,
-        "Influenza A (GC/L)": base_flu,
-        "SARS-CoV-2 (GC/L)": base_sars
-    })
-    
-    # Create the Interactive Plotly Chart
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=hist_df["Date"], y=hist_df["Norovirus (GC/L)"], name="🦠 Norovirus", line=dict(color="#E74C3C", width=3)))
-    fig.add_trace(go.Scatter(x=hist_df["Date"], y=hist_df["Influenza A (GC/L)"], name="🫁 Influenza A", line=dict(color="#9B59B6", width=2)))
-    fig.add_trace(go.Scatter(x=hist_df["Date"], y=hist_df["SARS-CoV-2 (GC/L)"], name="🦠 SARS-CoV-2", line=dict(color="#3498DB", width=2)))
-    
-    fig.update_layout(
-        title="Pathogen Viral Shedding Intensities Over Days/Weeks",
-        xaxis_title="Timeline Calendar",
-        yaxis_title="Genomic Copies / Liter (Log Scale)",
-        yaxis_type="log",
-        template="plotly_white",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        hovermode="x unified"
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-    st.caption("Note: Trend tracking utilizes a rolling logarithmic baseline to capture rapid biological acceleration indices before healthcare dispensary admission surges.")
+        # Generate an internal historical dataset for plotting (84 days)
+        np.random.seed(42)
+        history_days = 84
+        plot_dates = pd.date_range(start="2026-05-01", periods=history_days, freq="D")
+        
+        # Simulate a realistic historical surge matching the selected sandbox scenario
+        base_noro = np.random.normal(1.1e5, 1.5e4, history_days)
+        base_flu = np.random.normal(1.8e4, 2e3, history_days)
+        base_sars = np.random.normal(3.8e4, 4e3, history_days)
+        
+        if sim_scenario == "Norovirus Spike in Beas Block (Dry Weather)":
+            for d in range(50, history_days):
+                base_noro[d] *= (1.15 ** (d - 50))
+        elif sim_scenario == "Influenza Outbreak in Uhl Block during Heavy Rain":
+            for d in range(55, history_days):
+                base_flu[d] *= (1.12 ** (d - 55))
+                
+        hist_df = pd.DataFrame({
+            "Date": plot_dates,
+            "Norovirus (GC/L)": base_noro,
+            "Influenza A (GC/L)": base_flu,
+            "SARS-CoV-2 (GC/L)": base_sars
+        })
+        
+        # Create the Interactive Plotly Chart
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=hist_df["Date"], y=hist_df["Norovirus (GC/L)"], name="🦠 Norovirus", line=dict(color="#E74C3C", width=3)))
+        fig.add_trace(go.Scatter(x=hist_df["Date"], y=hist_df["Influenza A (GC/L)"], name="🫁 Influenza A", line=dict(color="#9B59B6", width=2)))
+        fig.add_trace(go.Scatter(x=hist_df["Date"], y=hist_df["SARS-CoV-2 (GC/L)"], name="🦠 SARS-CoV-2", line=dict(color="#3498DB", width=2)))
+        
+        fig.update_layout(
+            title="Pathogen Viral Shedding Intensities Over Days/Weeks",
+            xaxis_title="Timeline Calendar",
+            yaxis_title="Genomic Copies / Liter (Log Scale)",
+            yaxis_type="log",
+            template="plotly_white",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            hovermode="x unified"
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption("Note: Trend tracking utilizes a rolling logarithmic baseline to capture rapid biological acceleration indices before healthcare dispensary admission surges.")

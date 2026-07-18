@@ -1,162 +1,193 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
-from scipy.stats import gmean
+import requests
 
-# --- 1. DATA GENERATOR ENGINE (Simulating 3 Campus Nodes) ---
-def generate_campus_node_data():
-    np.random.seed(42)
-    days = 60
-    date_range = pd.date_range(start="2026-05-01", periods=days, freq="D")
+# --- 1. IMD LIVE API FALLBACK WRAPPER ---
+def fetch_imd_rainfall():
+    """
+    Simulates a live connection to the IMD API Gateway (api.imd.gov.in)
+    with a robust operational fallback for the Mandi district grid.
+    """
+    try:
+        response = requests.get("https://imd.gov.in", timeout=2)
+        if response.status_code == 200:
+            return float(response.json().get("rainfall_24h", 0.0))
+    except:
+        pass
+    # Production fallback matching dynamic simulation controls
+    return float(st.session_state.get("sandbox_rain", 0.0))
+
+# --- 2. MULTI-BRANCH DECISION ENGINE ---
+def execute_decision_pipeline(noro, sars, flu, ph, turb, rain, flow, baseline_noro=1e5, baseline_flu=2e4, baseline_sars=4e4):
+    # Context / Correction branch:
+    # Compute relative dilution coefficients based on IMD precipitation metrics
+    dilution_factor = 1.0 if rain < 5 else (1.0 + (rain * 0.05))
     
-    # Standard base flow per node (approx 1,000 people per node * 135 L/capita = 135,000 L/day)
-    base_flow = 135000
+    # Normalise active pathogen counts to completely counter rainfall dilution
+    noro_norm = noro * dilution_factor
+    flu_norm = flu * dilution_factor
+    sars_norm = sars * dilution_factor
     
-    nodes = ['Node 1 (Beas-Side Hostels)', 'Node 2 (Uhl-Side Hostels)', 'Node 3 (Academic & Transit Hub)']
-    all_data = []
+    # Disease-Warning branch:
+    noro_ratio = noro_norm / baseline_noro
+    flu_ratio = flu_norm / baseline_flu
+    sars_ratio = sars_norm / baseline_sars
     
-    for day_idx in range(days):
-        rain = 0 if day_idx < 40 else (np.random.exponential(12) if np.random.rand() > 0.4 else 0)
+    pathogen_spike = max(noro_ratio, flu_ratio, sars_ratio)
+    
+    # Rule engine to decide confidence levels based on weather interference
+    if pathogen_spike > 4.0:
+        if rain < 15 and flow < 150000:
+            disease_alert = ("🔴 HIGH-CONFIDENCE OUTBREAK", "#E74C3C")
+        else:
+            disease_alert = ("🟡 UNCERTAIN SIGNAL (WEATHER INTERFERENCE)", "#F39C12")
+    elif pathogen_spike > 1.8:
+        disease_alert = ("🟡 ELEVATED TRANSMISSION WATCH", "#F1C40F")
+    else:
+        disease_alert = ("🟢 PATHOGEN LEVELS STABLE", "#2ECC71")
         
-        for node in nodes:
-            flow = base_flow + (rain * 2500)
-            ph = np.random.normal(7.3, 0.15)
-            turbidity = max(15, np.random.normal(175, 15) - (rain * 2))
-            
-            # Baseline normal ranges
-            noro_raw = np.random.normal(1.1e5, 1.5e4)
-            sars_raw = np.random.normal(4.0e4, 5e3)
-            flu_raw = np.random.normal(1.5e4, 2e3)
-            
-            # Scenario Anomalies for Hackathon Impact
-            if node == 'Node 1 (Beas-Side Hostels)' and day_idx >= 48:
-                # Localized rapid Norovirus outbreak in West campus hostels
-                noro_raw *= (1.28 ** (day_idx - 48))
-                
-            if node == 'Node 3 (Academic & Transit Hub)' and day_idx == 35:
-                # Localized chemistry lab chemical dump anomaly
-                ph = 4.8
-                turbidity = 45.0
-                
-            if node == 'Node 2 (Uhl-Side Hostels)' and day_idx >= 52:
-                # Localized Influenza A spike in East campus hostels
-                flu_raw *= (1.22 ** (day_idx - 52))
-
-            noro_load = noro_raw * flow
-            sars_load = sars_raw * flow
-            flu_load = flu_raw * flow
-            
-            all_data.append([date_range[day_idx], day_idx, node, rain, flow, ph, turbidity, noro_load, sars_load, flu_load])
-            
-    df = pd.DataFrame(all_data, columns=[
-        'Date', 'Day_Index', 'Node', 'Rainfall_mm', 'Flow_Rate_L', 'pH', 'Turbidity_NTU', 
-        'Noro_Load', 'SARS_Load', 'Flu_Load'
-    ])
-    return df
-
-df = generate_campus_node_data()
-
-# --- 2. PRESCRIPTIVE ENGINE (Why, Where, How Action Logic) ---
-def analyze_node_incident(node_df, current_idx):
-    if current_idx < 3:
-        return {
-            "Status": "🟡 INITIAL LEARNING PHASE", "Color": "#F1C40F",
-            "Why": "The system is currently gathering the opening 3 days of baseline data.",
-            "Measures": ["Maintain standard plant maintenance operations.", "Verify auto-sampler physical seal integrity."]
-        }
+    # Water/Sanitation branch:
+    # Factor out rain to see if high turbidity is mud vs true sewage overflow
+    expected_rain_turbidity = rain * 4.5
+    unexplained_turbidity = max(0, turb - expected_rain_turbidity)
     
-    row = node_df.iloc[current_idx]
-    
-    # 1. CPCB Physical Parameter Violations
-    if row['pH'] < 6.5:
-        return {
-            "Status": "🚨 PHYSICAL INTEGRITY CRITICAL: ACCIDENTAL ACID RELEASE", "Color": "#9B59B6",
-            "Why": f"pH level dropped down to {row['pH']:.2f}, breaching CPCB minimum limits (6.5). The low turbidity confirms chemical dilution rather than human bio-waste aggregation.",
-            "Measures": [
-                "🛑 IMMEDIATELY halt downstream biological digester treatment to prevent biomass kill-off.",
-                "🧪 Inject Sodium Carbonate (Soda Ash) dosing into the localized lift station to neutralize acidity.",
-                "🥼 Alert the IIT Mandi Chemistry / Bio-X Labs to audit upstream chemical disposal logs for the last 12 hours."
-            ]
-        }
-        
-    # 2. Biological Velocity Trajectory Math
-    past_loads = node_df.iloc[max(0, current_idx-3):current_idx]['Noro_Load'].values
-    historical_geo_mean = gmean(past_loads) if len(past_loads) > 0 else 1.0
-    noro_velocity = np.log10(row['Noro_Load']) - np.log10(historical_geo_mean)
-    
-    past_flu = node_df.iloc[max(0, current_idx-3):current_idx]['Flu_Load'].values
-    flu_geo_mean = gmean(past_flu) if len(past_flu) > 0 else 1.0
-    flu_velocity = np.log10(row['Flu_Load']) - np.log10(flu_geo_mean)
-
-    if noro_velocity >= 0.7:
-        fold_inc = 10**noro_velocity
-        return {
-            "Status": "🔴 BIOLOGICAL ALERT: LOCALIZED NOROVIRUS OUTBREAK", "Color": "#E74C3C",
-            "Why": f"Norovirus daily mass load spiked by {fold_inc:.1f}x over the 3-sample rolling geometric mean. Stable pH and turbidity confirm this is a real epidemiological viral acceleration, not a water network artifact.",
-            "Measures": [
-                "🧼 Contact the corresponding Hostel Mess Committee to immediately stop self-service; deploy dedicated masked food handlers.",
-                "🪣 Switch campus common-area sanitation protocols from quaternary ammonium to 1,000 ppm chlorine bleach solution.",
-                "🏥 Advise the IIT Mandi Dispensary to pre-position anti-motility medications and rehydration salts for this hostel cluster."
-            ]
-        }
-        
-    if flu_velocity >= 0.6:
-        fold_inc = 10**flu_velocity
-        return {
-            "Status": "🟠 RESPIRATORY WATCH: INFLUENZA A TRANSMISSION", "Color": "#E67E22",
-            "Why": f"Influenza A load expanded by {fold_inc:.1f}x relative to baseline. Elevated wastewater mass load flags high viral shedding prior to broad clinic-level symptomatic presentation.",
-            "Measures": [
-                "😷 Issue a targeted health advisory to the specific hostel block suggesting masking inside common reading rooms.",
-                "💨 Increase ventilation cycles and maximize outdoor fresh air intake inside the nearest mess hall and common lounges.",
-                "🌡️ Launch proactive digital temperature self-reporting on the internal student portal."
-            ]
-        }
+    if ph < 6.5 or ph > 8.5 or unexplained_turbidity > 220:
+        if rain >= 25:
+            sanitation_alert = ("🟡 MONSOON RUNOFF ANOMALY", "#F1C40F")
+        else:
+            sanitation_alert = ("🔴 UNEXPLAINED SANITATION VIOLATION", "#9B59B6")
+    else:
+        sanitation_alert = ("🟢 WATER QUALITY NORMAL", "#2ECC71")
         
     return {
-        "Status": "🟢 HEALTH STANDARDS SECURE", "Color": "#2ECC71",
-        "Why": "All target pathogens and physico-chemical indices match normal, historic CPCB baseline parameters.",
-        "Measures": ["Continue standard daily composite sampling schedules.", "Log data parameters into the rolling internal archive."]
+        "disease_status": disease_alert[0],
+        "disease_color": disease_alert[1],
+        "sanitation_status": sanitation_alert[0],
+        "sanitation_color": sanitation_alert[1],
+        "noro_stat": "HIGH" if noro_ratio > 3 else ("MED" if noro_ratio > 1.5 else "LOW"),
+        "flu_stat": "HIGH" if flu_ratio > 3 else ("MED" if flu_ratio > 1.5 else "LOW"),
+        "sars_stat": "HIGH" if sars_ratio > 3 else ("MED" if sars_ratio > 1.5 else "LOW"),
+        "ph_stat": "HIGH" if (ph < 6.5 or ph > 8.5) else "LOW",
+        "turb_stat": "HIGH" if unexplained_turbidity > 200 else ("MED" if unexplained_turbidity > 100 else "LOW"),
+        "noro_ratio": noro_ratio,
+        "flu_ratio": flu_ratio,
+        "sars_ratio": sars_ratio
     }
 
-# --- 3. UI ADVISORY PORTAL DEPLOYMENT ---
-st.set_page_config(page_title="MandiScan Action Portal", layout="wide")
-st.title("🏔️ MandiScan: IIT Kamand Prescriptive Response Center")
-st.caption("Active Countermeasure & Restoration Engine | Population: 3,000")
-
-# Timeline Sandbox Controller
-sim_day = st.slider("Step Through Simulation Day (Test the Scenarios!)", 0, 59, 54)
-target_date = df[df['Day_Index'] == sim_day]['Date'].iloc[0].strftime('%Y-%m-%d')
-
-st.markdown(f"### 🗓️ Incident Log Date: `{target_date}`")
+# --- 3. STREAMLIT FRONTEND DEPLOYMENT ---
+st.set_page_config(page_title="MandiScan Portal", layout="wide")
+st.markdown("<h1 style='text-align: center; color: #2C3E50;'>🏔️ Campus Wastewater Health Alert Dashboard</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #7F8C8D;'>IIT Mandi Kamand Infrastructure Monitoring Framework</p>", unsafe_allow_html=True)
 st.write("---")
 
-# Run analysis per node for the selected day
-nodes = ['Node 1 (Beas-Side Hostels)', 'Node 2 (Uhl-Side Hostels)', 'Node 3 (Academic & Transit Hub)']
+# Intercepting interactive states via Sidebar Control Panel
+st.sidebar.header("🕹️ Simulation Sandbox Matrix")
+st.sidebar.write("Manually alter indices to stress-test pipeline logic rules:")
+st.sidebar.session_state["sandbox_rain"] = st.sidebar.slider("IMD Weather Station Rain (mm)", 0, 50, 0)
+sim_scenario = st.sidebar.selectbox("Choose Localised Campus Event Profile", [
+    "Healthy Normal Operations Baseline", 
+    "Norovirus Spike in Beas Block (Dry Weather)", 
+    "Influenza Outbreak in Uhl Block during Heavy Rain",
+    "Chemical Dump / Broken Pipe Event in Academic Zone"
+])
 
-for node in nodes:
-    node_full_data = df[df['Node'] == node].sort_values('Day_Index').reset_index(drop=True)
-    analysis = analyze_node_incident(node_full_data, sim_day)
+# Fetch rainfall from the IMD API wrapper
+live_rain = fetch_imd_rainfall()
+
+# Map simulated metrics across individual campus hostel groups
+hostel_zones = {
+    "Beas-Side Hostel Cluster (B16-B23)": {"noro": 1.1e5, "flu": 1.8e4, "sars": 3.8e4, "ph": 7.3, "turb": 120, "flow": 135000},
+    "Uhl-Side Hostel Cluster (B8-B12)": {"noro": 1.0e5, "flu": 1.9e4, "sars": 3.9e4, "ph": 7.2, "turb": 115, "flow": 130000},
+    "Academic, Labs & Sports Complex Hub": {"noro": 0.8e5, "flu": 1.2e4, "sars": 2.5e4, "ph": 7.4, "turb": 90, "flow": 110000}
+}
+
+if sim_scenario == "Norovirus Spike in Beas Block (Dry Weather)":
+    hostel_zones["Beas-Side Hostel Cluster (B16-B23)"]["noro"] = 6.5e5
+    hostel_zones["Beas-Side Hostel Cluster (B16-B23)"]["turb"] = 280
+elif sim_scenario == "Influenza Outbreak in Uhl Block during Heavy Rain":
+    hostel_zones["Uhl-Side Hostel Cluster (B8-B12)"]["flu"] = 1.2e5
+    st.sidebar.session_state["sandbox_rain"] = 45 # force heavy rain
+    live_rain = 45
+    hostel_zones["Uhl-Side Hostel Cluster (B8-B12)"]["flow"] = 195000
+    hostel_zones["Uhl-Side Hostel Cluster (B8-B12)"]["turb"] = 240 # Elevated but caused by runoff
+elif sim_scenario == "Chemical Dump / Broken Pipe Event in Academic Zone":
+    hostel_zones["Academic, Labs & Sports Complex Hub"]["ph"] = 5.2
+    hostel_zones["Academic, Labs & Sports Complex Hub"]["turb"] = 350
+
+# --- SECTION 1: MACRO PARAMETER STATUS RIBBON ---
+st.markdown("### 📊 Live Parameter Multi-Indicator Status")
+m_cols = st.columns(5)
+metrics_labels = ["🦠 Norovirus", "🫁 Influenza A", "🦠 SARS-CoV-2", "🧪 pH Level", "🔬 Turbidity"]
+metrics_keys = ["noro_stat", "flu_stat", "sars_stat", "ph_stat", "turb_stat"]
+
+# Loop through all locations to find the highest status flag for the top ribbon
+for idx, label in enumerate(metrics_labels):
+    highest_status = "LOW"
+    for zone, z_data in hostel_zones.items():
+        res = execute_decision_pipeline(z_data["noro"], z_data["flu"], z_data["sars"], z_data["ph"], z_data["turb"], live_rain, z_data["flow"])
+        curr_stat = res[metrics_keys[idx]]
+        if curr_stat == "HIGH": highest_status = "HIGH"
+        elif curr_stat == "MED" and highest_status != "HIGH": highest_status = "MED"
+        
+    color_map = {"LOW": "#2ECC71", "MED": "#F1C40F", "HIGH": "#E74C3C"}
+    with m_cols[idx]:
+        st.markdown(
+            f"""
+            <div style="background-color:{color_map[highest_status]}20; border:1px solid {color_map[highest_status]}; padding:15px; border-radius:8px; text-align:center;">
+                <h4 style="margin:0; color:#34495E;">{label}</h4>
+                <p style="margin:5px 0 0 0; font-size:24px; font-weight:bold; color:{color_map[highest_status]};">{highest_status}</p>
+            </div>
+            """, unsafe_allow_html=True
+        )
+
+st.write("---")
+
+# --- SECTION 2: SCROLL-DOWN ZONE INTERVENTIONS ---
+st.markdown("### 🗺️ Localised Hostel Block Assessment & Prescriptive Actions")
+
+for zone, z_data in hostel_zones.items():
+    analysis = execute_decision_pipeline(z_data["noro"], z_data["flu"], z_data["sars"], z_data["ph"], z_data["turb"], live_rain, z_data["flow"])
     
-    # Visual Box Structure for Immediate Scanning
     with st.container():
         st.markdown(
             f"""
-            <div style="background-color: {analysis['Color']}15; border-left: 6px solid {analysis['Color']}; padding: 18px; border-radius: 6px; margin-bottom: 20px;">
-                <h3 style="margin-top:0; color:{analysis['Color']};">{node} — {analysis['Status']}</h3>
-                <p><strong>🚨 THE WHY & WHERE:</strong> {analysis['Why']}</p>
-                <strong>🛠️ MANDATORY CONTAINER ACTIONS TO RESTORE WATER QUALITY & HEALTH SAFETY:</strong>
-                <ul style="margin-top: 5px;">
-                    {"".join([f"<li style='margin-bottom:6px;'>{measure}</li>" for measure in analysis['Measures']])}
-                </ul>
-            </div>
-            """, 
-            unsafe_allow_html=True
+            <div style="background-color:#FAFAFA; border:1px solid #E0E0E0; padding:20px; border-radius:8px; margin-bottom:25px;">
+                <h2 style="color:#2C3E50; margin-top:0;">📍 {zone}</h2>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:15px;">
+                    <div style="padding:10px; border-left:4px solid {analysis['disease_color']}; background-color:{analysis['disease_color']}10;">
+                        <strong>🦠 DISEASE BRANCH STATUS:</strong><br><span style="color:{analysis['disease_color']}; font-weight:bold;">{analysis['disease_status']}</span>
+                    </div>
+                    <div style="padding:10px; border-left:4px solid {analysis['sanitation_color']}; background-color:{analysis['sanitation_color']}10;">
+                        <strong>💧 SANITATION BRANCH STATUS:</strong><br><span style="color:{analysis['sanitation_color']}; font-weight:bold;">{analysis['sanitation_status']}</span>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True
         )
-
-# Secondary expandable container for validation data
-with st.expander("🔍 Click to view raw chemical/biological sensor values for this day"):
-    current_day_data = df[df['Day_Index'] == sim_day]
-    st.dataframe(current_day_data[['Node', 'pH', 'Turbidity_NTU', 'Flow_Rate_L', 'Noro_Load']].style.format({
-        'pH': '{:.2f}', 'Turbidity_NTU': '{:.1f}', 'Flow_Rate_L': '{:,.0f}', 'Noro_Load': '{:.2e}'
-    }))
+        
+        # Display customized diagnostic details based on active flags
+        st.markdown("**🔬 Metric Anomalies Identified:**")
+        anomaly_found = False
+        
+        if analysis["noro_stat"] == "HIGH":
+            st.markdown(f"⚠️ *Unexpected change:* Norovirus concentration expanded significantly ({analysis['noro_ratio']:.1f}x baseline). This points to rising gastrointestinal activity inside this hostel group.")
+            anomaly_found = True
+        if analysis["flu_stat"] == "HIGH":
+            st.markdown(f"⚠️ *Unexpected change:* Influenza A load spiked ({analysis['flu_ratio']:.1f}x baseline). This points to an active respiratory cluster transmission within common reading rooms.")
+            anomaly_found = True
+        if analysis["ph_stat"] == "HIGH":
+            st.markdown(f"⚠️ *Unexpected change:* Localized pH dropped to {z_data['ph']:.2f}. This is an asset violation indicating unauthorized upstream chemical disposal.")
+            anomaly_found = True
+        if not anomaly_found:
+            st.markdown("✅ No unexpected parameter variances identified. Water matrices are stable within CPCB parameters.")
+            
+        # Prescriptive corrective actions block
+        st.markdown("<p style='margin-top:15px; margin-bottom:5px;'><strong>🛠️ Recommended Corrective Protocols:</strong></p>", unsafe_allow_html=True)
+        
+        actions = []
+        if "🔴 HIGH-CONFIDENCE" in analysis["disease_status"]:
+        if analysis["noro_stat"] == "HIGH":actions = ["Halt mess self-service operations immediately; mandate dedicated plate handlers.", "Switch cleaning crews to 1,000 ppm sodium hypochlorite bleach for all common bathrooms."]
+        elif analysis["flu_stat"] == "HIGH":actions = ["Issue targeted masking directives for shared reading lounges inside this block.", "Increase HVAC exhaust cycles to max air exchanges within hostel common spaces."]
+        elif "🟡 UNCERTAIN SIGNAL" in analysis["disease_status"]:actions = ["Postpone major public health restrictions.", "Trigger automated re-sampling within a 12-hour window to account for heavy stormwater runoff."]
+        elif "🔴 UNEXPLAINED SANITATION" in analysis["sanitation_status"]:actions = ["Halt flow routing to the main biological aeration basin to prevent biomass kill-off.", "Dispatch maintenance to check upstream lab neutralization tanks for leaks."]
+        else:actions = ["Maintain baseline tracking schedules.", "Log active physical attributes to the historical campus baseline file."]st.markdown("".join([f"• {act}" for act in actions]), unsafe_allow_html=True)st.markdown("", unsafe_allow_html=True)

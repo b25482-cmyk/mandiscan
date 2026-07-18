@@ -185,9 +185,9 @@ for zone, z_data in hostel_zones.items():
         st.markdown("<p style='margin-top:15px; margin-bottom:5px;'><strong>🛠️ Recommended Corrective Protocols:</strong></p>", unsafe_allow_html=True)
         
         actions = []
-        if "🔴 HIGH-CONFIDENCE" in analysis["disease_status"]:
-        if analysis["noro_stat"] == "HIGH":actions = ["Halt mess self-service operations immediately; mandate dedicated plate handlers.", "Switch cleaning crews to 1,000 ppm sodium hypochlorite bleach for all common bathrooms."]
-        elif analysis["flu_stat"] == "HIGH":actions = ["Issue targeted masking directives for shared reading lounges inside this block.", "Increase HVAC exhaust cycles to max air exchanges within hostel common spaces."]
-        elif "🟡 UNCERTAIN SIGNAL" in analysis["disease_status"]:actions = ["Postpone major public health restrictions.", "Trigger automated re-sampling within a 12-hour window to account for heavy stormwater runoff."]
-        elif "🔴 UNEXPLAINED SANITATION" in analysis["sanitation_status"]:actions = ["Halt flow routing to the main biological aeration basin to prevent biomass kill-off.", "Dispatch maintenance to check upstream lab neutralization tanks for leaks."]
-        else:actions = ["Maintain baseline tracking schedules.", "Log active physical attributes to the historical campus baseline file."]st.markdown("".join([f"• {act}" for act in actions]), unsafe_allow_html=True)st.markdown("", unsafe_allow_html=True)
+            if "🔴 HIGH-CONFIDENCE" in analysis["disease_status"]:
+            if analysis["noro_stat"] == "HIGH":actions = ["Halt mess self-service operations immediately; mandate dedicated plate handlers.", "Switch cleaning crews to 1,000 ppm sodium hypochlorite bleach for all common bathrooms."]
+            elif analysis["flu_stat"] == "HIGH":actions = ["Issue targeted masking directives for shared reading lounges inside this block.", "Increase HVAC exhaust cycles to max air exchanges within hostel common spaces."]
+            elif "🟡 UNCERTAIN SIGNAL" in analysis["disease_status"]:actions = ["Postpone major public health restrictions.", "Trigger automated re-sampling within a 12-hour window to account for heavy stormwater runoff."]
+            elif "🔴 UNEXPLAINED SANITATION" in analysis["sanitation_status"]:actions = ["Halt flow routing to the main biological aeration basin to prevent biomass kill-off.", "Dispatch maintenance to check upstream lab neutralization tanks for leaks."]
+            else:actions = ["Maintain baseline tracking schedules.", "Log active physical attributes to the historical campus baseline file."]st.markdown("".join([f"• {act}" for act in actions]), unsafe_allow_html=True)st.markdown("", unsafe_allow_html=True)

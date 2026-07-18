@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import plotly.graph_objects as go
 import requests
 
 # --- 1. IMD LIVE API FALLBACK WRAPPER ---

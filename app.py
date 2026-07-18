@@ -220,49 +220,52 @@ for zone, z_data in hostel_zones.items():
     
     st.write("---")
     
-    # --- SECTION 3: TREND GRAPHS OVER DAYS/WEEKS (EXPANDABLE DATA LAYER) ---
-    with st.expander("📈 View Pathogen & Environmental Trend Analysis (Historical Metrics)"):
-        st.markdown("#### 12-Week Campus Timeline Analytics")
-        
-        # Generate an internal historical dataset for plotting (84 days)
-        np.random.seed(42)
-        history_days = 84
-        plot_dates = pd.date_range(start="2026-05-01", periods=history_days, freq="D")
-        
-        # Simulate a realistic historical surge matching the selected sandbox scenario
-        base_noro = np.random.normal(1.1e5, 1.5e4, history_days)
-        base_flu = np.random.normal(1.8e4, 2e3, history_days)
-        base_sars = np.random.normal(3.8e4, 4e3, history_days)
-        
-        if sim_scenario == "Norovirus Spike in Beas Block (Dry Weather)":
-            for d in range(50, history_days):
-                base_noro[d] *= (1.15 ** (d - 50))
-        elif sim_scenario == "Influenza Outbreak in Uhl Block during Heavy Rain":
-            for d in range(55, history_days):
-                base_flu[d] *= (1.12 ** (d - 55))
-                
-        hist_df = pd.DataFrame({
-            "Date": plot_dates,
-            "Norovirus (GC/L)": base_noro,
-            "Influenza A (GC/L)": base_flu,
-            "SARS-CoV-2 (GC/L)": base_sars
-        })
-        
-        # Create the Interactive Plotly Chart
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=hist_df["Date"], y=hist_df["Norovirus (GC/L)"], name="🦠 Norovirus", line=dict(color="#E74C3C", width=3)))
-        fig.add_trace(go.Scatter(x=hist_df["Date"], y=hist_df["Influenza A (GC/L)"], name="🫁 Influenza A", line=dict(color="#9B59B6", width=2)))
-        fig.add_trace(go.Scatter(x=hist_df["Date"], y=hist_df["SARS-CoV-2 (GC/L)"], name="🦠 SARS-CoV-2", line=dict(color="#3498DB", width=2)))
-        
-        fig.update_layout(
-            title="Pathogen Viral Shedding Intensities Over Days/Weeks",
-            xaxis_title="Timeline Calendar",
-            yaxis_title="Genomic Copies / Liter (Log Scale)",
-            yaxis_type="log",
-            template="plotly_white",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            hovermode="x unified"
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-        st.caption("Note: Trend tracking utilizes a rolling logarithmic baseline to capture rapid biological acceleration indices before healthcare dispensary admission surges.")
+# --- SECTION 3: TREND GRAPHS OVER DAYS/WEEKS (EXPANDABLE DATA LAYER) ---
+with st.expander("📈 View Pathogen & Environmental Trend Analysis (Historical Metrics)"):
+    st.markdown("#### 12-Week Campus Timeline Analytics")
+    
+    # Generate an internal historical dataset for plotting (84 days)
+    np.random.seed(42)
+    history_days = 84
+    plot_dates = pd.date_range(start="2026-05-01", periods=history_days, freq="D")
+    
+    # Simulate a realistic historical surge matching the selected sandbox scenario
+    base_noro = np.random.normal(1.1e5, 1.5e4, history_days)
+    base_flu = np.random.normal(1.8e4, 2e3, history_days)
+    base_sars = np.random.normal(3.8e4, 4e3, history_days)
+    
+    if sim_scenario == "Norovirus Spike in Beas Block (Dry Weather)":
+        for d in range(50, history_days):
+            base_noro[d] *= (1.15 ** (d - 50))
+    elif sim_scenario == "Influenza Outbreak in Uhl Block during Heavy Rain":
+        for d in range(55, history_days):
+            base_flu[d] *= (1.12 ** (d - 55))
+            
+    hist_df = pd.DataFrame({
+        "Date": plot_dates,
+        "Norovirus (GC/L)": base_noro,
+        "Influenza A (GC/L)": base_flu,
+        "SARS-CoV-2 (GC/L)": base_sars
+    })
+    
+    # Create the Interactive Plotly Chart
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=hist_df["Date"], y=hist_df["Norovirus (GC/L)"], name="🦠 Norovirus", line=dict(color="#E74C3C", width=3)))
+    fig.add_trace(go.Scatter(x=hist_df["Date"], y=hist_df["Influenza A (GC/L)"], name="🫁 Influenza A", line=dict(color="#9B59B6", width=2)))
+    fig.add_trace(go.Scatter(x=hist_df["Date"], y=hist_df["SARS-CoV-2 (GC/L)"], name="🦠 SARS-CoV-2", line=dict(color="#3498DB", width=2)))
+    
+    fig.update_layout(
+        title="Pathogen Viral Shedding Intensities Over Days/Weeks",
+        xaxis_title="Timeline Calendar",
+        yaxis_title="Genomic Copies / Liter (Log Scale)",
+        yaxis_type="log",
+        template="plotly_white",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        hovermode="x unified"
+    )
+    
+    # FIXED: Added a static unique key string here to prevent rendering collisions
+    st.plotly_chart(fig, use_container_width=True, key="historical_trend_chart_element")
+    st.caption("Note: Trend tracking utilizes a rolling logarithmic baseline to capture rapid biological acceleration indices before healthcare dispensary admission surges.")
+
+    
